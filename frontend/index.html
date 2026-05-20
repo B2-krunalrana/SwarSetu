@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#1f1f1f">
+    <meta name="description" content="SwarSetu - Local Network Audio Announcement System">
+    <title>SwarSetu - Hold to Talk</title>
+    <style>
+        /* ============================================================================
+           GLOBAL STYLES & RESET
+           ============================================================================ */
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            width: 100%;
+            height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+            touch-action: manipulation;
+        }
+        
+        /* ============================================================================
+           MAIN CONTAINER
+           ============================================================================ */
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 20px;
+            gap: 30px;
+        }
+        
+        /* ============================================================================
+           HEADER
+           ============================================================================ */
+        
+        .header {
+            text-align: center;
+            color: white;
+            animation: slideDown 0.6s ease-out;
+        }
+        
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+        
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        /* ============================================================================
+           STATUS SECTION
+           ============================================================================ */
+        
+        .status-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 14px;
+            color: white;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-indicator.connected {
+            background: #51cf66;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+        
+        .status-text {
+            font-weight: 500;
+        }
+        
+        /* ============================================================================
+           MIC BUTTON (MAIN INTERACTIVE ELEMENT)
+           ============================================================================ */
+        
+        .mic-button {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-touch-callout: none;
+            touch-action: manipulation;
+        }
+        
+        .mic-button:hover:not(.recording) {
+            transform: scale(1.05);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+        }
+        
+        .mic-button:active:not(.recording) {
+            transform: scale(0.95);
+        }
+        
+        .mic-button.recording {
+            background: #ff6b6b;
+            box-shadow: 0 0 0 20px rgba(255, 107, 107, 0.2);
+            animation: recordPulse 0.6s ease-in-out infinite;
+        }
+        
+        .mic-button.recording::before {
+            content: '';
+            position: absolute;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            animation: expandPulse 1s ease-out infinite;
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        @keyframes recordPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 20px rgba(255, 107, 107, 0.2),
+                            0 8px 30px rgba(0, 0, 0, 0.3);
+            }
+            50% {
+                box-shadow: 0 0 0 30px rgba(255, 107, 107, 0.1),
+                            0 8px 30px rgba(0, 0, 0, 0.3);
+            }
+        }
+        
+        @keyframes expandPulse {
+            0% {
+                transform: scale(1);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1.4);
+                opacity: 0;
+            }
+        }
+        
+        .mic-button-text {
+            font-size: 12px;
+            font-weight: 600;
+            color: #667eea;
+            text-align: center;
+            margin-top: 45px;
+            position: absolute;
+        }
+        
+        .mic-button.recording .mic-button-text {
+            color: white;
+            margin-top: 45px;
+        }
+        
+        /* ============================================================================
+           INFO SECTION
+           ============================================================================ */
+        
+        .info-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 300px;
+            text-align: center;
+            color: #333;
+            font-size: 13px;
+            line-height: 1.6;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        
+        .info-section strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 8px;
+        }
+        
+        /* ============================================================================
+           ERROR STATE
+           ============================================================================ */
+        
+        .error-message {
+            background: rgba(255, 107, 107, 0.2);
+            border: 1px solid rgba(255, 107, 107, 0.5);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            text-align: center;
+            display: none;
+            animation: slideUp 0.3s ease-out;
+            max-width: 300px;
+        }
+        
+        .error-message.show {
+            display: block;
+        }
+        
+        @keyframes slideUp {
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideDown {
+            from {
+                transform: translateY(-20px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        /* ============================================================================
+           RESPONSIVE DESIGN
+           ============================================================================ */
+        
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+                gap: 20px;
+            }
+            
+            .header h1 {
+                font-size: 28px;
+            }
+            
+            .header p {
+                font-size: 13px;
+            }
+            
+            .mic-button {
+                width: 120px;
+                height: 120px;
+                font-size: 50px;
+            }
+            
+            .mic-button-text {
+                margin-top: 40px;
+                font-size: 11px;
+            }
+            
+            .status-section,
+            .info-section {
+                width: 90%;
+            }
+        }
+        
+        /* ============================================================================
+           ACCESSIBILITY
+           ============================================================================ */
+        
+        .mic-button:focus {
+            outline: 3px solid rgba(255, 255, 255, 0.5);
+            outline-offset: 4px;
+        }
+        
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+        
+        /* ============================================================================
+           LOADING SPINNER
+           ============================================================================ */
+        
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>🎙️ SwarSetu</h1>
+            <p>Hold to Announce</p>
+        </div>
+        
+        <!-- Status Section -->
+        <div class="status-section">
+            <div class="status-item">
+                <div class="status-indicator" id="connectionStatus"></div>
+                <span class="status-text" id="connectionText">Connecting...</span>
+            </div>
+            <div class="status-item">
+                <span id="micStatus">🎤 Microphone: Not Ready</span>
+            </div>
+            <div class="status-item">
+                <span id="recordingTime">⏱️ Time: 0s</span>
+            </div>
+        </div>
+        
+        <!-- Error Message -->
+        <div class="error-message" id="errorMessage"></div>
+        
+        <!-- Mic Button -->
+        <button class="mic-button" id="micButton" title="Hold to record and announce">
+            🎤
+            <span class="mic-button-text" id="micButtonText">HOLD TO TALK</span>
+        </button>
+        
+        <!-- Info Section -->
+        <div class="info-section">
+            <strong>📢 How to Use:</strong>
+            Press and hold the button to record. Release to stop recording and broadcast.
+        </div>
+    </div>
+
+    <script>
+        /* ========================================================================
+           SWARSETU CLIENT - JavaScript
+           
+           This script handles:
+           1. Microphone access and audio recording
+           2. WebSocket connection to server
+           3. Audio streaming to connected listeners
+           4. UI state management and real-time updates
+           ======================================================================== */
+        
+        // ========================================================================
+        // CONFIGURATION
+        // ========================================================================
+        
+        const CONFIG = {
+            // Audio recording settings
+            audio: {
+                sampleRate: 16000,      // 16 kHz (standard for voice)
+                channels: 1,            // Mono
+                echoCancellation: true, // Remove background noise
+                noiseSuppression: true, // Suppress noise
+                autoGainControl: true,  // Auto volume control
+            },
+            // Server connection
+            server: {
+                reconnectAttempts: 5,
+                reconnectDelay: 2000,   // milliseconds
+            }
+        };
+        
+        // ========================================================================
+        // STATE MANAGEMENT
+        // ========================================================================
+        
+        const State = {
+            // Connection states
+            isConnected: false,
+            isRecording: false,
+            isMicrophoneReady: false,
+            
+            // WebSocket and media objects
+            ws: null,
+            mediaStream: null,
+            mediaRecorder: null,
+            
+            // Recording state
+            recordingStartTime: null,
+            recordingDuration: 0,
+            reconnectAttempts: 0,
+            
+            // Audio chunks queue
+            audioChunks: [],
+        };
+        
+        // ========================================================================
+        // DOM ELEMENTS
+        // ========================================================================
+        
+        const DOM = {
+            micButton: document.getElementById('micButton'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            connectionText: document.getElementById('connectionText'),
+            micStatus: document.getElementById('micStatus'),
+            recordingTime: document.getElementById('recordingTime'),
+            errorMessage: document.getElementById('errorMessage'),
+            micButtonText: document.getElementById('micButtonText'),
+        };
+        
+        // ========================================================================
+        // UTILITY FUNCTIONS
+        // ========================================================================
+        
+        /**
+         * Get the server address from the current page URL
+         * This allows the page to work on any local network IP
+         */
+        function getServerUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;  // Includes IP:port if applicable
+            return `${protocol}//${host}/ws/sender`;
+        }
+        
+        /**
+         * Show error message to user
+         */
+        function showError(message) {
+            DOM.errorMessage.textContent = message;
+            DOM.errorMessage.classList.add('show');
+            console.error(`[ERROR] ${message}`);
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                DOM.errorMessage.classList.remove('show');
+            }, 5000);
+        }
+        
+        /**
+         * Update connection status UI
+         */
+        function updateConnectionStatus(connected) {
+            State.isConnected = connected;
+            
+            if (connected) {
+                DOM.connectionStatus.classList.add('connected');
+                DOM.connectionText.textContent = 'Connected to Server';
+                console.log('[CONNECTION] ✓ Connected to server');
+            } else {
+                DOM.connectionStatus.classList.remove('connected');
+                DOM.connectionText.textContent = 'Disconnected';
+                console.log('[CONNECTION] ✗ Disconnected from server');
+            }
+        }
+        
+        /**
+         * Update microphone status UI
+         */
+        function updateMicStatus(ready) {
+            State.isMicrophoneReady = ready;
+            
+            if (ready) {
+                DOM.micStatus.textContent = '🎤 Microphone: Ready';
+                DOM.micButton.disabled = false;
+            } else {
+                DOM.micStatus.textContent = '🎤 Microphone: Not Ready';
+                DOM.micButton.disabled = true;
+            }
+        }
+        
+        /**
+         * Update recording timer
+         */
+        function updateRecordingTime() {
+            if (State.isRecording && State.recordingStartTime) {
+                const elapsed = Math.floor(
+                    (Date.now() - State.recordingStartTime) / 1000
+                );
+                DOM.recordingTime.textContent = `⏱️ Time: ${elapsed}s`;
+            }
+        }
+        
+        // ========================================================================
+        // WEBSOCKET CONNECTION
+        // ========================================================================
+        
+        /**
+         * Initialize WebSocket connection to server
+         */
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                try {
+                    const wsUrl = getServerUrl();
+                    console.log(`[WEBSOCKET] Connecting to ${wsUrl}`);
+                    
+                    State.ws = new WebSocket(wsUrl);
+                    
+                    State.ws.onopen = () => {
+                        console.log('[WEBSOCKET] ✓ Connection opened');
+                        updateConnectionStatus(true);
+                        State.reconnectAttempts = 0;  // Reset reconnect counter
+                        resolve();
+                    };
+                    
+                    State.ws.onerror = (error) => {
+                        console.error('[WEBSOCKET] ✗ Error:', error);
+                        updateConnectionStatus(false);
+                        reject(error);
+                    };
+                    
+                    State.ws.onmessage = (event) => {
+                        console.log('[WEBSOCKET] Received message:', event.data);
+                        
+                        // Handle JSON messages (status updates)
+                        try {
+                            const message = JSON.parse(event.data);
+                            console.log('[MESSAGE]', message.status || message.type);
+                        } catch (e) {
+                            // Binary data or non-JSON message
+                        }
+                    };
+                    
+                    State.ws.onclose = () => {
+                        console.log('[WEBSOCKET] ✗ Connection closed');
+                        updateConnectionStatus(false);
+                        
+                        // Stop recording if active
+                        if (State.isRecording) {
+                            stopRecording();
+                        }
+                        
+                        // Attempt to reconnect
+                        attemptReconnect();
+                    };
+                    
+                } catch (error) {
+                    console.error('[WEBSOCKET] Failed to create WebSocket:', error);
+                    reject(error);
+                }
+            });
+        }
+        
+        /**
+         * Attempt to reconnect to server with exponential backoff
+         */
+        function attemptReconnect() {
+            if (State.reconnectAttempts >= CONFIG.server.reconnectAttempts) {
+                showError(
+                    `Failed to connect after ${CONFIG.server.reconnectAttempts} attempts. ` +
+                    `Please check if the server is running and refresh the page.`
+                );
+                console.error('[RECONNECT] Max attempts reached');
+                return;
+            }
+            
+            State.reconnectAttempts++;
+            const delay = CONFIG.server.reconnectDelay * Math.pow(2, State.reconnectAttempts - 1);
+            
+            console.log(
+                `[RECONNECT] Attempting reconnection ${State.reconnectAttempts}/` +
+                `${CONFIG.server.reconnectAttempts} after ${delay}ms`
+            );
+            
+            setTimeout(() => {
+                connectWebSocket().catch((error) => {
+                    console.error('[RECONNECT] Connection failed:', error);
+                    attemptReconnect();
+                });
+            }, delay);
+        }
+        
+        // ========================================================================
+        // MICROPHONE & RECORDING
+        // ========================================================================
+        
+        /**
+         * Request microphone access from the browser
+         * This triggers the browser's permission dialog on first use
+         */
+        async function initializeMicrophone() {
+            try {
+                console.log('[MICROPHONE] Requesting access...');
+                
+                // Request microphone access with specified constraints
+                State.mediaStream = await navigator.mediaDevices.getUserMedia({
+                    audio: CONFIG.audio,
+                    video: false,
+                });
+                
+                console.log('[MICROPHONE] ✓ Access granted');
+                updateMicStatus(true);
+                
+                // Initialize MediaRecorder
+                initializeMediaRecorder();
+                
+            } catch (error) {
+                console.error('[MICROPHONE] ✗ Access denied:', error);
+                
+                if (error.name === 'NotAllowedError') {
+                    showError(
+                        'Microphone permission denied. ' +
+                        'Please allow microphone access in your browser settings.'
+                    );
+                } else if (error.name === 'NotFoundError') {
+                    showError('No microphone found on this device.');
+                } else {
+                    showError(`Microphone error: ${error.message}`);
+                }
+                
+                updateMicStatus(false);
+            }
+        }
+        
+        /**
+         * Initialize MediaRecorder for capturing audio chunks
+         */
+        function initializeMediaRecorder() {
+            try {
+                // Create MediaRecorder instance
+                State.mediaRecorder = new MediaRecorder(State.mediaStream, {
+                    mimeType: 'audio/webm',  // Use WebM format for broad support
+                    audioBitsPerSecond: 128000,  // 128 kbps
+                });
+                
+                console.log('[MEDIARECORDER] Initialized');
+                
+                /**
+                 * Handle audio data when available
+                 * This fires every ~100ms during recording
+                 */
+                State.mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        State.audioChunks.push(event.data);
+                        console.log(
+                            `[AUDIO] Chunk received: ${event.data.size} bytes`
+                        );
+                    }
+                };
+                
+                /**
+                 * Handle recording stop event
+                 */
+                State.mediaRecorder.onstop = () => {
+                    console.log('[MEDIARECORDER] Recording stopped');
+                };
+                
+                /**
+                 * Handle errors
+                 */
+                State.mediaRecorder.onerror = (event) => {
+                    console.error('[MEDIARECORDER] Error:', event.error);
+                    showError(`Recording error: ${event.error}`);
+                    stopRecording();
+                };
+                
+            } catch (error) {
+                console.error('[MEDIARECORDER] Failed to initialize:', error);
+                showError(`MediaRecorder error: ${error.message}`);
+            }
+        }
+        
+        /**
+         * Start recording audio from microphone
+         */
+        function startRecording() {
+            if (!State.isMicrophoneReady || !State.mediaRecorder) {
+                console.warn('[RECORDING] Cannot start: microphone not ready');
+                return;
+            }
+            
+            if (State.isRecording) {
+                console.warn('[RECORDING] Already recording');
+                return;
+            }
+            
+            if (!State.isConnected) {
+                showError('Not connected to server. Cannot start recording.');
+                return;
+            }
+            
+            // Reset audio chunks buffer
+            State.audioChunks = [];
+            
+            // Start recording
+            State.mediaRecorder.start(100);  // Request data every 100ms
+            State.isRecording = true;
+            State.recordingStartTime = Date.now();
+            
+            // Update UI
+            DOM.micButton.classList.add('recording');
+            DOM.micButtonText.textContent = 'RECORDING...';
+            
+            // Start timer update
+            State.timerInterval = setInterval(updateRecordingTime, 100);
+            
+            console.log('[RECORDING] ✓ Started');
+        }
+        
+        /**
+         * Stop recording and send audio chunks to server
+         */
+        async function stopRecording() {
+            if (!State.isRecording || !State.mediaRecorder) {
+                console.warn('[RECORDING] Not currently recording');
+                return;
+            }
+            
+            // Stop the recorder
+            State.mediaRecorder.stop();
+            State.isRecording = false;
+            
+            // Clear timer
+            clearInterval(State.timerInterval);
+            
+            // Update UI
+            DOM.micButton.classList.remove('recording');
+            DOM.micButtonText.textContent = 'HOLD TO TALK';
+            
+            const duration = State.recordingStartTime 
+                ? (Date.now() - State.recordingStartTime) / 1000 
+                : 0;
+            
+            console.log(`[RECORDING] ✓ Stopped (${duration.toFixed(2)}s)`);
+            
+            // Send all accumulated audio chunks to server
+            if (State.audioChunks.length > 0) {
+                await sendAudioChunks();
+            } else {
+                console.warn('[RECORDING] No audio chunks to send');
+            }
+        }
+        
+        /**
+         * Send accumulated audio chunks to the server via WebSocket
+         */
+        async function sendAudioChunks() {
+            if (State.audioChunks.length === 0) {
+                console.warn('[SEND] No audio chunks to send');
+                return;
+            }
+            
+            if (!State.ws || State.ws.readyState !== WebSocket.OPEN) {
+                showError('WebSocket connection not available');
+                console.error('[SEND] WebSocket not open');
+                return;
+            }
+            
+            try {
+                console.log(`[SEND] Sending ${State.audioChunks.length} audio chunks`);
+                
+                // Combine all chunks into a single blob
+                const audioBlob = new Blob(State.audioChunks, { type: 'audio/webm' });
+                const totalSize = audioBlob.size;
+                
+                console.log(`[SEND] Total audio size: ${totalSize} bytes`);
+                
+                // Send as binary data to server
+                const arrayBuffer = await audioBlob.arrayBuffer();
+                State.ws.send(arrayBuffer);
+                
+                console.log('[SEND] ✓ Audio sent to server');
+                
+                // Clear chunks after sending
+                State.audioChunks = [];
+                
+            } catch (error) {
+                console.error('[SEND] Failed to send audio:', error);
+                showError(`Failed to send audio: ${error.message}`);
+            }
+        }
+        
+        // ========================================================================
+        // EVENT LISTENERS
+        // ========================================================================
+        
+        /**
+         * Mic button - Start recording on mouse/touch down
+         */
+        DOM.micButton.addEventListener('mousedown', () => {
+            if (State.isConnected) {
+                startRecording();
+            }
+        });
+        
+        /**
+         * Mic button - Stop recording on mouse/touch up
+         */
+        DOM.micButton.addEventListener('mouseup', () => {
+            stopRecording();
+        });
+        
+        /**
+         * Mic button - Stop recording if mouse leaves during recording
+         */
+        DOM.micButton.addEventListener('mouseleave', () => {
+            if (State.isRecording) {
+                stopRecording();
+            }
+        });
+        
+        /**
+         * Handle touch events for mobile devices
+         */
+        DOM.micButton.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            if (State.isConnected) {
+                startRecording();
+            }
+        });
+        
+        DOM.micButton.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            stopRecording();
+        });
+        
+        DOM.micButton.addEventListener('touchcancel', (e) => {
+            e.preventDefault();
+            if (State.isRecording) {
+                stopRecording();
+            }
+        });
+        
+        // ========================================================================
+        // INITIALIZATION
+        // ========================================================================
+        
+        /**
+         * Initialize the application
+         * Called when the page loads
+         */
+        async function initializeApp() {
+            console.log('%c🎙️ SwarSetu Client Initializing', 'font-size: 16px; color: #667eea; font-weight: bold');
+            console.log('Server URL:', getServerUrl());
+            
+            // Step 1: Request microphone access
+            await initializeMicrophone();
+            
+            // Step 2: Connect to WebSocket server
+            try {
+                await connectWebSocket();
+            } catch (error) {
+                console.error('[INIT] Failed to connect to server:', error);
+                showError('Failed to connect to server. Is it running?');
+                attemptReconnect();
+            }
+            
+            console.log('%c✓ SwarSetu Client Ready', 'font-size: 14px; color: #51cf66; font-weight: bold');
+        }
+        
+        /**
+         * Start initialization when DOM is ready
+         */
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initializeApp);
+        } else {
+            initializeApp();
+        }
+        
+        /**
+         * Clean up resources when page is unloaded
+         */
+        window.addEventListener('beforeunload', () => {
+            console.log('[CLEANUP] Closing connections...');
+            
+            // Stop recording if active
+            if (State.isRecording) {
+                State.mediaRecorder?.stop();
+            }
+            
+            // Stop microphone stream
+            if (State.mediaStream) {
+                State.mediaStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Close WebSocket
+            if (State.ws) {
+                State.ws.close();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# SwarSetu - Python Package Requirements
+# Install with: pip install -r requirements.txt
+
+# Web Framework & Async
+fastapi==0.104.1              # Modern Python web framework
+uvicorn==0.24.0               # ASGI server for FastAPI
+websockets==12.0              # WebSocket support for async
+
+# Audio Processing
+sounddevice==0.4.6            # Real-time audio I/O
+numpy>=1.26.0                 # Numerical computing (required by sounddevice, >=1.26.0 for Python 3.12+ support)
+
+# Development (optional)
+python-dotenv==1.0.0          # Load environment variables from .env file
+pytest==7.4.3                 # Testing framework (optional)
+pytest-asyncio==0.21.1        # Async support for pytest (optional)
