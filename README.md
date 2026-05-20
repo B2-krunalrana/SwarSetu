@@ -36,11 +36,15 @@ SwarSetu/
 │   ├── __init__.py
 │   ├── config.py            # Centralized settings (sample rate, etc.)
 │   └── main.py              # FastAPI server & audio playback thread
-├── frontend/                 # Web Interface (host on Cloudflare Pages)
-│   ├── index.html           # App page layout
-│   ├── style.css            # Glowing dark-mode walkie-talkie styling
-│   ├── app.js               # Audio pipeline, WS life cycle, & visualizer
-│   └── audio-processor.js   # Worklet audio processor file (fallback)
+├── frontend/                 # React PWA Frontend
+│   ├── public/              # PWA assets & app icons
+│   ├── src/                 # React source code
+│   │   ├── App.jsx          # Main client UI & audio streaming logic
+│   │   ├── index.css        # Walkie-talkie styling & animations
+│   │   └── main.jsx         # React entrypoint
+│   ├── index.html           # HTML template
+   ├── vite.config.js       # Vite config (React + PWA plugin)
+   └── package.json         # Frontend dependencies
 ├── requirements.txt         # Python libraries
 ├── CLOUDFLARE_TUNNEL_SETUP.md # Detailed tunnel mapping instructions
 └── README.md                # General setup and deployment guide
@@ -78,43 +82,65 @@ pip install -r requirements.txt
 
 ---
 
-### Step 2: Start the Backend Server
-Run the FastAPI application from the project root:
-
+### Step 2: Build the React PWA Frontend
+The FastAPI backend serves the React application directly. You must first install dependencies and compile the production build:
 ```bash
-python server/main.py
-```
+# Navigate to the frontend folder
+cd frontend
 
-#### Audio Device Configuration:
-If your machine has multiple speakers or sound cards (e.g. HDMI vs 3.5mm jack), you can list devices and bind to a specific one:
+# Install node dependencies
+npm install
 
-```bash
-# List available audio interfaces
-python server/main.py --list-devices
+# Compile the optimized production build with PWA features
+npm run build
 
-# Run binding to device ID 2 (or a specific device name)
-python server/main.py --device 2
-# Or by name
-python server/main.py --device "External"
+# Return to root directory
+cd ..
 ```
 
 ---
 
-### Step 3: Run the Web Frontend (Two Options)
+### Step 3: Start the Backend Server (Two Options)
 
-#### Option A: Local Network Testing
-The FastAPI backend is pre-configured to host the frontend assets locally for testing.
-1. Find your machine's local IP address (e.g., `192.168.1.100` via `ipconfig` on Windows or `ifconfig` on Linux).
-2. Open a web browser on a smartphone or laptop connected to the **same WiFi network**.
-3. Navigate to: `http://192.168.1.100:8000`.
-4. Open the **Connection Settings** (gear icon ⚙️), ensure the URL points to your server (e.g. `ws://192.168.1.100:8000/ws/stream`), click **Apply Settings**, and press **Connect Server**.
+#### Option A: Local Network (LAN) Testing (Using Self-Signed SSL)
+Modern mobile browsers require a secure context (HTTPS) to allow microphone access. You can easily set this up on your local network:
+
+1. **Find your machine's local IP address**:
+   - **Windows**: Run `ipconfig` in Command Prompt (look for "IPv4 Address" under your Wi-Fi/Ethernet adapter, e.g., `192.168.1.100`).
+   - **Linux / Raspberry Pi**: Run `ifconfig` or `ip a` (look for `inet`, e.g., `192.168.1.100`).
+
+2. **Generate a local self-signed SSL certificate** using OpenSSL:
+   ```bash
+   # In Git Bash or MSYS2 (Windows), use a double slash to prevent path conversion:
+   openssl req -newkey rsa:2048 -new -nodes -x509 -days 365 -keyout key.pem -out cert.pem -subj "//CN=SwarSetu"
+   
+   # Or run interactively (press Enter to accept defaults):
+   openssl req -newkey rsa:2048 -new -nodes -x509 -days 365 -keyout key.pem -out cert.pem
+   ```
+   *(This creates `key.pem` and `cert.pem` files in your active folder)*
+
+3. **Start the FastAPI backend with the SSL keys**:
+   ```bash
+   python server/main.py --ssl-keyfile key.pem --ssl-certfile cert.pem
+   ```
+   *(If you want to play audio through a specific speaker card, run `python server/main.py --list-devices` first, then run starting with `--device <id>`)*
+
+4. **Connect from your smartphone**:
+   - Open your browser on a phone connected to the **same WiFi network**.
+   - Navigate to `https://<YOUR-PC-IP>:8000` (e.g., `https://192.168.1.100:8000`).
+   - *Note:* Since the certificate is self-signed, click **Advanced** and select **Proceed to <IP> (unsafe)**.
+   - Once loaded, click **Connect Server**, accept the microphone permission, and start broadcasting! The app automatically resolves the secure WebSocket port (`wss://<YOUR-PC-IP>:8000/ws/stream`) under the HTTPS context.
 
 #### Option B: Cloudflare Pages Deployment (Production)
-1. Push the `frontend` folder to a GitHub repository.
+1. Push your repository (including `frontend/` and `server/` folders) to GitHub.
 2. Log in to [Cloudflare Dashboard](https://dash.cloudflare.com/) ➔ **Workers & Pages** ➔ **Create Application** ➔ **Pages** ➔ **Connect to Git**.
-3. Select your repository. Set the **Build Command** to empty (static site), and **Output directory** to `frontend`. Click Deploy.
-4. Set up a **Cloudflare Tunnel** for your backend (see [CLOUDFLARE_TUNNEL_SETUP.md](file:///d:/SwarSetu-app/SwarSetu/CLOUDFLARE_TUNNEL_SETUP.md)) so you can map your local server to a secure URL (e.g., `wss://swarsetu.yourdomain.com/ws/stream`).
-5. Open your Cloudflare Pages URL on your phone, open the Settings menu, paste your secure WebSocket URL, click Save, and speak!
+3. Select your repository. Configure the following build settings:
+   - **Root directory**: `frontend`
+   - **Build Command**: `npm run build`
+   - **Output directory**: `dist`
+   - Click **Save and Deploy**.
+4. Set up a **Cloudflare Tunnel** for your backend (see [CLOUDFLARE_TUNNEL_SETUP.md](file:///d:/SwarSetu-app/SwarSetu/CLOUDFLARE_TUNNEL_SETUP.md)) so you can map your local server to a secure WebSocket (`wss://swarsetu.yourdomain.com/ws/stream`).
+5. Open your Cloudflare Pages URL on your phone, click **Connect Server**, grant mic permission, and speak!
 
 ---
 

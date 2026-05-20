@@ -1,175 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>SwarSetu — Live Voice Bridge</title>
-  
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
-  
-  <!-- Main Stylesheet -->
-  <link rel="stylesheet" href="style.css">
-  
-  <!-- Favicon or icon placeholder -->
-  <meta name="theme-color" content="#020617">
-</head>
-<body>
-  <div class="app-container">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/pwa-192x192.png" />
+    <link rel="apple-touch-icon" href="/pwa-192x192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#030712" />
+    <title>SwarSetu — Voice Bridge</title>
     
-    <!-- Header -->
-    <header class="app-header">
-      <div class="logo-area">
-        <span class="logo-icon">🎙️</span>
-        <div class="logo-text">
-          <h1>SwarSetu</h1>
-          <span class="subtitle">LIVE VOICE BRIDGE</span>
-        </div>
-      </div>
-      
-      <div class="status-indicator-container">
-        <span id="connection-dot" class="status-dot disconnected"></span>
-        <span id="status-text" class="status-label">Disconnected</span>
-      </div>
-    </header>
-
-    <!-- Visualizer & Stats Area -->
-    <div class="visualizer-wrapper">
-      <canvas id="waveform-canvas"></canvas>
-      <div class="audio-stats">
-        <div class="stat-item">
-          <span class="stat-label">Latency</span>
-          <span id="stat-latency" class="stat-value">-- ms</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Packets</span>
-          <span id="stat-packets" class="stat-value">0</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">Mode</span>
-          <span id="stat-mode-badge" class="stat-value badge-ptt">PTT</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Main Controller Area -->
-    <main class="control-center">
-      
-      <!-- Central PTT/Broadcast Trigger Button -->
-      <div class="trigger-ring">
-        <button id="ptt-btn" class="ptt-button" disabled>
-          <div class="ptt-glow"></div>
-          <div class="ptt-inner">
-            <svg class="mic-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v1a7 7 0 0 1-14 0v-1"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-            <span id="ptt-prompt">INITIALIZING</span>
-          </div>
-        </button>
-      </div>
-
-      <!-- Mode Selector -->
-      <div class="mode-panel">
-        <div class="mode-toggle-group">
-          <button id="mode-ptt" class="mode-btn active">
-            <span>Push-To-Talk</span>
-          </button>
-          <button id="mode-stream" class="mode-btn">
-            <span>Continuous</span>
-          </button>
-        </div>
-      </div>
-      
-    </main>
-
-    <!-- Bottom Controls & Connections -->
-    <footer class="app-footer">
-      <button id="connect-btn" class="action-btn connect-action">
-        <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
-          <line x1="12" y1="2" x2="12" y2="12"/>
-        </svg>
-        <span id="connect-btn-text">Connect Server</span>
-      </button>
-      
-      <button id="settings-toggle-btn" class="action-btn settings-action" aria-label="Settings">
-        <svg viewBox="0 0 24 24" class="btn-icon" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </button>
-    </footer>
-
-    <!-- Glassmorphic Settings Panel (Drawer) -->
-    <div id="settings-drawer" class="settings-drawer">
-      <div class="drawer-header">
-        <h2>Connection Settings</h2>
-        <button id="settings-close-btn" class="close-btn">&times;</button>
-      </div>
-      
-      <div class="drawer-body">
-        
-        <div class="input-group">
-          <label for="ws-url-input">Server WebSocket URL</label>
-          <input type="text" id="ws-url-input" placeholder="wss://your-tunnel-domain.com/ws/stream">
-          <p class="input-help">Use <code>wss://</code> for Cloudflare Tunnel/secure connections, or <code>ws://</code> for local network development.</p>
-        </div>
-
-        <div class="input-row">
-          <div class="input-group half">
-            <label for="sample-rate-select">Sample Rate</label>
-            <select id="sample-rate-select">
-              <option value="16000">16 kHz (Voice, Recommended)</option>
-              <option value="24000">24 kHz (HQ Voice)</option>
-              <option value="44100">44.1 kHz (CD Quality)</option>
-              <option value="48000">48 kHz (Studio Quality)</option>
-            </select>
-          </div>
-          
-          <div class="input-group half">
-            <label for="chunk-size-select">Chunk Size</label>
-            <select id="chunk-size-select">
-              <option value="512">512 (Ultra-low latency)</option>
-              <option value="1024" selected>1024 (Balanced)</option>
-              <option value="2048">2048 (Stable buffering)</option>
-              <option value="4096">4096 (High latency, safest)</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="system-diagnostic">
-          <h3>Diagnostics & Device</h3>
-          <div class="diag-row">
-            <span>Mic Permission:</span>
-            <span id="diag-mic-perm" class="diag-status warning">Checking...</span>
-          </div>
-          <div class="diag-row">
-            <span>Audio Context:</span>
-            <span id="diag-audio-context" class="diag-status">Not Initialized</span>
-          </div>
-          <div class="diag-row">
-            <span>Selected rate:</span>
-            <span id="diag-actual-rate" class="diag-status">--</span>
-          </div>
-        </div>
-        
-        <button id="save-settings-btn" class="save-btn">Apply Settings</button>
-      </div>
-    </div>
-    
-    <!-- Background overlay for drawer -->
-    <div id="drawer-overlay" class="drawer-overlay"></div>
-
-    <!-- Notification Toast -->
-    <div id="toast" class="toast"></div>
-
-  </div>
-
-  <script src="app.js"></script>
-</body>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

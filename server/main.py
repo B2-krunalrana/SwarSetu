@@ -15,7 +15,15 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
+from fastapi.staticfiles import StaticFiles
+
 from config import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEBUG
+
+# Fix Windows terminal encoding to UTF-8 (prevents crash on emoji in logs)
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Setup logging
 logging.basicConfig(
@@ -84,12 +92,20 @@ def playback_worker(
     logger.info(f"Starting playback worker thread (Rate: {sample_rate}Hz, Channels: {channels}, Device: {dev_idx if dev_idx is not None else 'Default'})")
     
     try:
+        # Resolve active device index and query details
+        resolved_device = dev_idx if dev_idx is not None else sd.default.device[1]
+        try:
+            device_info = sd.query_devices(resolved_device)
+            logger.info(f"[AUDIO] Output device: [{resolved_device}] {device_info['name']}")
+        except Exception as e:
+            logger.warning(f"Could not query audio device details for index {resolved_device}: {e}")
+
         # Open output stream
         with sd.OutputStream(
             samplerate=sample_rate,
             channels=channels,
             dtype="int16",
-            device=dev_idx,
+            device=resolved_device,
             latency="low"
         ) as stream:
             logger.info("Audio output stream successfully opened.")
@@ -102,6 +118,18 @@ def playback_worker(
                     
                     # Convert raw bytes to numpy 16-bit integers
                     audio_chunk = np.frombuffer(data, dtype=np.int16)
+                    
+                    # Calculate volume (RMS) of the chunk to display level meter
+                    if len(audio_chunk) > 0:
+                        rms = np.sqrt(np.mean(audio_chunk.astype(np.float32)**2))
+                    else:
+                        rms = 0.0
+                    
+                    # Generate simple level bar (max 20 blocks)
+                    bar_length = int(min(20, rms / 150))
+                    level_bar = "█" * bar_length + "░" * (20 - bar_length)
+                    
+                    logger.info(f"[AUDIO] Playing {len(audio_chunk)} samples | RMS: {rms:6.1f} | [{level_bar}]")
                     
                     # Write block to speakers (blocking write)
                     stream.write(audio_chunk)
@@ -133,40 +161,6 @@ async def health_check():
     )
 
 
-# --- Static frontend files serving routes for local setup support ---
-
-@app.get("/")
-async def get_index():
-    index_path = os.path.join(PROJECT_ROOT, "frontend", "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return HTMLResponse("Frontend files not found. Please ensure the frontend/ directory is placed alongside the server/ directory.", status_code=404)
-
-
-@app.get("/style.css")
-async def get_style():
-    path = os.path.join(PROJECT_ROOT, "frontend", "style.css")
-    if os.path.exists(path):
-        return FileResponse(path, media_type="text/css")
-    return JSONResponse({"error": "CSS File not found"}, status_code=404)
-
-
-@app.get("/app.js")
-async def get_app_js():
-    path = os.path.join(PROJECT_ROOT, "frontend", "app.js")
-    if os.path.exists(path):
-        return FileResponse(path, media_type="application/javascript")
-    return JSONResponse({"error": "JS File not found"}, status_code=404)
-
-
-@app.get("/audio-processor.js")
-async def get_audio_processor_js():
-    path = os.path.join(PROJECT_ROOT, "frontend", "audio-processor.js")
-    if os.path.exists(path):
-        return FileResponse(path, media_type="application/javascript")
-    return JSONResponse({"error": "Audio processor JS File not found"}, status_code=404)
-
-
 @app.websocket("/ws/stream")
 async def websocket_stream(websocket: WebSocket):
     """
@@ -177,12 +171,13 @@ async def websocket_stream(websocket: WebSocket):
     
     await websocket.accept()
     active_connections += 1
-    logger.info(f"WebSocket client connected. Active connections: {active_connections}")
-    
+
     # Read query parameters with fallbacks
     query_params = websocket.query_params
     sample_rate = int(query_params.get("sampleRate", DEFAULT_SAMPLE_RATE))
     channels = int(query_params.get("channels", DEFAULT_CHANNELS))
+
+    logger.info(f"[WS] Client connected - playing at {sample_rate} Hz, {channels}ch | Active: {active_connections}")
     
     # Initialize queue and stop signal for playback
     audio_queue = queue.Queue()
@@ -221,6 +216,15 @@ async def websocket_stream(websocket: WebSocket):
         logger.info(f"Session closed. Active connections: {active_connections}")
 
 
+# --- Mount React production build assets ---
+dist_path = os.path.join(PROJECT_ROOT, "frontend", "dist")
+if os.path.exists(dist_path):
+    app.mount("/", StaticFiles(directory=dist_path, html=True), name="frontend")
+    logger.info(f"Mounted React production build directory: {dist_path}")
+else:
+    logger.warning(f"React production build directory NOT found at: {dist_path}. Please compile the frontend using 'npm run build' inside the 'frontend/' folder.")
+
+
 def main():
     global device_index
     
@@ -229,6 +233,8 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to run the FastAPI server on")
     parser.add_argument("--device", type=str, default=None, help="Output audio device index or partial name")
     parser.add_argument("--list-devices", action="store_true", help="List all available audio devices and exit")
+    parser.add_argument("--ssl-keyfile", type=str, default=None, help="Path to SSL key file (for HTTPS/WSS on LAN)")
+    parser.add_argument("--ssl-certfile", type=str, default=None, help="Path to SSL cert file (for HTTPS/WSS on LAN)")
     
     args = parser.parse_args()
     
@@ -251,9 +257,34 @@ def main():
     
     # Resolve and set the device index
     device_index = get_audio_device_index(args.device)
-    
-    logger.info("🎙️ Starting SwarSetu Server...")
-    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
+
+    # Fix: Windows requires ProactorEventLoop for SSL/WebSocket support.
+    # Without this, uvicorn silently exits when --ssl-keyfile is provided.
+    if sys.platform == "win32":
+        import asyncio
+        asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+        logger.info("Applied WindowsProactorEventLoopPolicy for SSL support.")
+
+    proto = "https" if args.ssl_keyfile else "http"
+    logger.info(f"[SERVER] SwarSetu starting at {proto}://{args.host}:{args.port}")
+    logger.info(f"[SERVER] Open on your phone: {proto}://<YOUR-LAN-IP>:{args.port}")
+
+    try:
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            log_level="info",   # Show uvicorn 'Uvicorn running on...' startup line
+            ssl_keyfile=args.ssl_keyfile,
+            ssl_certfile=args.ssl_certfile,
+        )
+    except Exception as e:
+        logger.error(f"[SERVER] Failed to start: {e}")
+        logger.error("[SERVER] Common causes:")
+        logger.error("  - SSL cert/key files not found (check path)")
+        logger.error("  - Port 8000 already in use (stop old server with Ctrl+C first)")
+        logger.error("  - cert.pem / key.pem format invalid (regenerate them)")
+        sys.exit(1)
 
 
 if __name__ == "__main__":
