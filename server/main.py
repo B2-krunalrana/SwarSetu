@@ -1,356 +1,260 @@
-"""
-SwarSetu FastAPI Server
-A simple local-network real-time announcement system using WebSockets
-
-This server:
-1. Serves a mobile-friendly web interface for the sender
-2. Accepts incoming audio chunks from the browser via WebSocket
-3. Broadcasts audio to all connected receiver clients
-4. Maintains connection logs for debugging
-"""
-
-import logging
+import argparse
 import asyncio
-from datetime import datetime
-from typing import Set
-from contextlib import asynccontextmanager
+import logging
+import os
+import queue
+import sys
+import threading
+import time
+from typing import Optional
 
+import numpy as np
+import sounddevice as sd
+import uvicorn
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
 
-# Import configuration
-from config import (
-    HOST, PORT, AUDIO_SAMPLE_RATE, AUDIO_CHUNK_SIZE,
-    CORS_ORIGINS, APP_TITLE, APP_DESCRIPTION, APP_VERSION,
-    LOG_LEVEL, DEBUG_MODE
-)
+from config import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEBUG
 
-# ============================================================================
-# LOGGING SETUP
-# ============================================================================
-
-# Configure logging for debugging and monitoring
+# Setup logging
 logging.basicConfig(
-    level=getattr(logging, LOG_LEVEL),
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.DEBUG if DEBUG else logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("SwarSetu")
 
-# ============================================================================
-# GLOBAL STATE MANAGEMENT
-# ============================================================================
+# Determine project directories
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Set to store active WebSocket connections
-# We'll use separate sets for senders and receivers
-active_senders: Set[WebSocket] = set()  # Phone/browser clients sending audio
-active_receivers: Set[WebSocket] = set()  # Laptop clients receiving audio
+# Define FastAPI application
+app = FastAPI(title="SwarSetu Real-Time Voice Bridge")
 
-# Connection metadata for logging
-connection_log: list = []
-
-# ============================================================================
-# CONNECTION LOGGING HELPER
-# ============================================================================
-
-def log_connection(event: str, client_type: str, client_id: str):
-    """
-    Log connection events for debugging and monitoring
-    
-    Args:
-        event: "connected" or "disconnected"
-        client_type: "sender" or "receiver"
-        client_id: unique identifier for the client
-    """
-    timestamp = datetime.now().isoformat()
-    sender_count = len(active_senders)
-    receiver_count = len(active_receivers)
-    
-    log_entry = {
-        "timestamp": timestamp,
-        "event": event,
-        "type": client_type,
-        "client_id": client_id,
-        "active_senders": sender_count,
-        "active_receivers": receiver_count,
-    }
-    
-    connection_log.append(log_entry)
-    
-    logger.info(
-        f"[{event.upper()}] {client_type.upper()} {client_id} | "
-        f"Senders: {sender_count}, Receivers: {receiver_count}"
-    )
-
-# ============================================================================
-# LIFESPAN CONTEXT MANAGER (FastAPI startup/shutdown)
-# ============================================================================
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Manage application startup and shutdown events
-    """
-    # Startup
-    logger.info("=" * 60)
-    logger.info("🎙️  SwarSetu Server Starting")
-    logger.info("=" * 60)
-    logger.info(f"Server running on http://{HOST}:{PORT}")
-    logger.info(f"Debug mode: {DEBUG_MODE}")
-    logger.info(f"Audio settings - Sample rate: {AUDIO_SAMPLE_RATE} Hz, "
-                f"Chunk size: {AUDIO_CHUNK_SIZE} bytes")
-    
-    yield
-    
-    # Shutdown
-    logger.info("=" * 60)
-    logger.info("🛑 SwarSetu Server Shutting Down")
-    logger.info("=" * 60)
-    logger.info(f"Total connection events: {len(connection_log)}")
-
-# ============================================================================
-# FASTAPI APP INITIALIZATION
-# ============================================================================
-
-app = FastAPI(
-    title=APP_TITLE,
-    description=APP_DESCRIPTION,
-    version=APP_VERSION,
-    lifespan=lifespan,
-    debug=DEBUG_MODE
-)
-
-# Add CORS middleware to allow requests from other devices on the network
+# Enable CORS for frontend cross-origin requests
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=CORS_ORIGINS,
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ============================================================================
-# ROUTES
-# ============================================================================
+# Global variables for state and command line parameters
+device_index: Optional[int] = None
+active_connections = 0
+total_packets_received = 0
+total_bytes_received = 0
 
-@app.get("/", response_class=HTMLResponse)
-async def get_frontend():
+
+def get_audio_device_index(device_arg: Optional[str]) -> Optional[int]:
+    """Helper to resolve audio device index from string or int argument."""
+    if device_arg is None:
+        return None
+    try:
+        # If it's a direct digit, return it as integer
+        if device_arg.isdigit():
+            return int(device_arg)
+        
+        # Otherwise search by name substring
+        devices = sd.query_devices()
+        for idx, dev in enumerate(devices):
+            if device_arg.lower() in dev["name"].lower() and dev["max_output_channels"] > 0:
+                logger.info(f"Matched device name '{device_arg}' to index {idx}: {dev['name']}")
+                return idx
+        
+        logger.warning(f"Could not find output device matching name '{device_arg}'. Using default.")
+        return None
+    except Exception as e:
+        logger.error(f"Error resolving audio device index: {e}")
+        return None
+
+
+def playback_worker(
+    q: queue.Queue,
+    sample_rate: int,
+    channels: int,
+    dev_idx: Optional[int],
+    stop_event: threading.Event
+):
     """
-    Serve the mobile-friendly sender web interface
-    This is the page users open on their phones
+    Background worker thread that reads raw 16-bit PCM chunks from a queue
+    and writes them directly to the sounddevice OutputStream.
     """
-    return open("../frontend/index.html", encoding="utf-8").read()
+    logger.info(f"Starting playback worker thread (Rate: {sample_rate}Hz, Channels: {channels}, Device: {dev_idx if dev_idx is not None else 'Default'})")
+    
+    try:
+        # Open output stream
+        with sd.OutputStream(
+            samplerate=sample_rate,
+            channels=channels,
+            dtype="int16",
+            device=dev_idx,
+            latency="low"
+        ) as stream:
+            logger.info("Audio output stream successfully opened.")
+            while not stop_event.is_set():
+                try:
+                    # Get chunk with small timeout to check stop_event frequently
+                    data = q.get(timeout=0.1)
+                    if data is None:
+                        break
+                    
+                    # Convert raw bytes to numpy 16-bit integers
+                    audio_chunk = np.frombuffer(data, dtype=np.int16)
+                    
+                    # Write block to speakers (blocking write)
+                    stream.write(audio_chunk)
+                    q.task_done()
+                except queue.Empty:
+                    continue
+                except Exception as e:
+                    logger.error(f"Error during audio playback stream write: {e}")
+                    break
+    except Exception as e:
+        logger.error(f"Failed to open audio output stream: {e}")
+        logger.error("Please verify that your speakers are connected and the device selection is correct.")
+    
+    logger.info("Playback worker thread terminated.")
+
 
 @app.get("/health")
 async def health_check():
-    """
-    Health check endpoint
-    Returns server status and current connections
-    """
-    return {
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "active_senders": len(active_senders),
-        "active_receivers": len(active_receivers),
-        "total_connections": len(active_senders) + len(active_receivers),
-        "version": APP_VERSION,
-    }
+    """Rest Endpoint for server health and connectivity diagnostics."""
+    return JSONResponse(
+        content={
+            "status": "healthy",
+            "active_connections": active_connections,
+            "total_packets_received": total_packets_received,
+            "total_bytes_received": total_bytes_received,
+            "device": sd.query_devices(device_index)["name"] if device_index is not None else "Default",
+            "time": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+    )
 
-@app.get("/stats")
-async def get_stats():
-    """
-    Get detailed statistics about server and connections
-    """
-    return {
-        "active_senders": len(active_senders),
-        "active_receivers": len(active_receivers),
-        "connection_events": len(connection_log),
-        "recent_connections": connection_log[-20:] if connection_log else [],
-        "uptime": datetime.now().isoformat(),
-    }
 
-# ============================================================================
-# WEBSOCKET ENDPOINTS
-# ============================================================================
+# --- Static frontend files serving routes for local setup support ---
 
-@app.websocket("/ws/sender")
-async def websocket_sender_endpoint(websocket: WebSocket):
+@app.get("/")
+async def get_index():
+    index_path = os.path.join(PROJECT_ROOT, "frontend", "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return HTMLResponse("Frontend files not found. Please ensure the frontend/ directory is placed alongside the server/ directory.", status_code=404)
+
+
+@app.get("/style.css")
+async def get_style():
+    path = os.path.join(PROJECT_ROOT, "frontend", "style.css")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="text/css")
+    return JSONResponse({"error": "CSS File not found"}, status_code=404)
+
+
+@app.get("/app.js")
+async def get_app_js():
+    path = os.path.join(PROJECT_ROOT, "frontend", "app.js")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="application/javascript")
+    return JSONResponse({"error": "JS File not found"}, status_code=404)
+
+
+@app.get("/audio-processor.js")
+async def get_audio_processor_js():
+    path = os.path.join(PROJECT_ROOT, "frontend", "audio-processor.js")
+    if os.path.exists(path):
+        return FileResponse(path, media_type="application/javascript")
+    return JSONResponse({"error": "Audio processor JS File not found"}, status_code=404)
+
+
+@app.websocket("/ws/stream")
+async def websocket_stream(websocket: WebSocket):
     """
-    WebSocket endpoint for audio senders (phone/browser microphone)
+    WebSocket endpoint accepting raw binary PCM audio chunks.
+    Reads config from query parameters.
+    """
+    global active_connections, total_packets_received, total_bytes_received
     
-    Flow:
-    1. Phone browser connects here
-    2. Captures microphone audio
-    3. Sends audio chunks as binary data
-    4. Server broadcasts to all receivers
-    """
-    # Generate unique client ID
-    client_id = f"sender_{id(websocket)}"
+    await websocket.accept()
+    active_connections += 1
+    logger.info(f"WebSocket client connected. Active connections: {active_connections}")
     
-    try:
-        # Accept the WebSocket connection
-        await websocket.accept()
-        active_senders.add(websocket)
-        
-        log_connection("connected", "sender", client_id)
-        
-        logger.debug(f"Sender {client_id} connected. "
-                    f"Total senders: {len(active_senders)}")
-        
-        # Keep connection open and listen for incoming audio
-        while True:
-            try:
-                # Receive audio chunk (binary data from browser MediaRecorder)
-                data = await websocket.receive_bytes()
-                
-                if data:
-                    logger.debug(f"Received {len(data)} bytes from {client_id}")
-                    
-                    # Broadcast audio chunk to all connected receivers
-                    # This happens for every chunk received from the sender
-                    disconnected_receivers = set()
-                    
-                    for receiver in active_receivers:
-                        try:
-                            # Send the audio chunk to each receiver
-                            await receiver.send_bytes(data)
-                        except Exception as e:
-                            logger.error(f"Error sending to receiver: {e}")
-                            disconnected_receivers.add(receiver)
-                    
-                    # Clean up disconnected receivers
-                    for receiver in disconnected_receivers:
-                        active_receivers.discard(receiver)
-                        log_connection("disconnected", "receiver", 
-                                      f"receiver_{id(receiver)}")
-                    
-                    # Send confirmation back to sender (optional)
-                    try:
-                        await websocket.send_json({"status": "received"})
-                    except:
-                        pass
-                        
-            except asyncio.CancelledError:
-                logger.debug(f"Sender {client_id} cancelled")
-                break
-            except Exception as e:
-                logger.error(f"Error in sender loop: {e}")
-                break
-                
-    except WebSocketDisconnect:
-        logger.debug(f"Sender {client_id} disconnected")
-    except Exception as e:
-        logger.error(f"Unexpected error in sender endpoint: {e}")
-    finally:
-        # Clean up when sender disconnects
-        active_senders.discard(websocket)
-        log_connection("disconnected", "sender", client_id)
-        logger.info(f"Sender {client_id} removed. "
-                   f"Total senders: {len(active_senders)}")
-        
-        try:
-            await websocket.close()
-        except:
-            pass
-
-@app.websocket("/ws/receiver")
-async def websocket_receiver_endpoint(websocket: WebSocket):
-    """
-    WebSocket endpoint for audio receivers (Python client or web receiver)
+    # Read query parameters with fallbacks
+    query_params = websocket.query_params
+    sample_rate = int(query_params.get("sampleRate", DEFAULT_SAMPLE_RATE))
+    channels = int(query_params.get("channels", DEFAULT_CHANNELS))
     
-    Flow:
-    1. Receiver client connects here
-    2. Waits for audio chunks from senders
-    3. Receives and processes audio chunks
-    4. Maintains connection until disconnected
-    """
-    # Generate unique client ID
-    client_id = f"receiver_{id(websocket)}"
+    # Initialize queue and stop signal for playback
+    audio_queue = queue.Queue()
+    stop_event = threading.Event()
+    
+    # Start thread
+    worker_thread = threading.Thread(
+        target=playback_worker,
+        args=(audio_queue, sample_rate, channels, device_index, stop_event),
+        daemon=True
+    )
+    worker_thread.start()
     
     try:
-        # Accept the WebSocket connection
-        await websocket.accept()
-        active_receivers.add(websocket)
-        
-        log_connection("connected", "receiver", client_id)
-        
-        logger.debug(f"Receiver {client_id} connected. "
-                    f"Total receivers: {len(active_receivers)}")
-        
-        # Send welcome message
-        await websocket.send_json({
-            "type": "connected",
-            "message": "Connected to SwarSetu server",
-            "client_id": client_id,
-            "timestamp": datetime.now().isoformat(),
-        })
-        
-        # Keep connection open and handle incoming messages
         while True:
-            try:
-                # Receivers mainly receive data, but can also send keep-alive messages
-                message = await websocket.receive_text()
-                
-                if message == "ping":
-                    # Respond to ping with pong
-                    await websocket.send_text("pong")
-                else:
-                    logger.debug(f"Received message from {client_id}: {message}")
-                    
-            except asyncio.CancelledError:
-                logger.debug(f"Receiver {client_id} cancelled")
-                break
-            except Exception as e:
-                if "Receiving client is disconnected" not in str(e):
-                    logger.error(f"Error in receiver loop: {e}")
-                break
-                
+            # Wait for binary message
+            data = await websocket.receive_bytes()
+            
+            # Update stats
+            total_packets_received += 1
+            total_bytes_received += len(data)
+            
+            # Enqueue raw data
+            audio_queue.put(data)
+            
     except WebSocketDisconnect:
-        logger.debug(f"Receiver {client_id} disconnected")
+        logger.info("WebSocket client disconnected.")
     except Exception as e:
-        logger.error(f"Unexpected error in receiver endpoint: {e}")
+        logger.error(f"WebSocket loop encountered error: {e}")
     finally:
-        # Clean up when receiver disconnects
-        active_receivers.discard(websocket)
-        log_connection("disconnected", "receiver", client_id)
-        logger.info(f"Receiver {client_id} removed. "
-                   f"Total receivers: {len(active_receivers)}")
-        
+        active_connections = max(0, active_connections - 1)
+        # Gracefully stop the worker thread
+        audio_queue.put(None)
+        stop_event.set()
+        worker_thread.join(timeout=1.0)
+        logger.info(f"Session closed. Active connections: {active_connections}")
+
+
+def main():
+    global device_index
+    
+    parser = argparse.ArgumentParser(description="🎙️ SwarSetu: Live Voice Bridge System Backend")
+    parser.add_argument("--host", type=str, default=DEFAULT_HOST, help="Host network interface to bind to")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Port to run the FastAPI server on")
+    parser.add_argument("--device", type=str, default=None, help="Output audio device index or partial name")
+    parser.add_argument("--list-devices", action="store_true", help="List all available audio devices and exit")
+    
+    args = parser.parse_args()
+    
+    if args.list_devices:
+        print("\n=== SwarSetu Audio Device Utility ===")
         try:
-            await websocket.close()
-        except:
-            pass
+            devices = sd.query_devices()
+            default_out = sd.default.device[1]
+            print(f"Default Output Device Index: {default_out}\n")
+            print("Available Devices:")
+            for idx, dev in enumerate(devices):
+                is_out = dev["max_output_channels"] > 0
+                out_tag = " [OUTPUT]" if is_out else ""
+                default_tag = " (DEFAULT)" if idx == default_out else ""
+                print(f" [{idx}] {dev['name']} - Channels: In={dev['max_input_channels']}, Out={dev['max_output_channels']}{out_tag}{default_tag}")
+        except Exception as e:
+            print(f"Error querying audio devices: {e}")
+        print("======================================\n")
+        sys.exit(0)
+    
+    # Resolve and set the device index
+    device_index = get_audio_device_index(args.device)
+    
+    logger.info("🎙️ Starting SwarSetu Server...")
+    uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 
-# ============================================================================
-# ERROR HANDLERS
-# ============================================================================
-
-@app.exception_handler(Exception)
-async def general_exception_handler(request, exc):
-    """
-    Global exception handler for unexpected errors
-    """
-    logger.error(f"Unhandled exception: {exc}")
-    return {
-        "error": "Internal server error",
-        "detail": str(exc) if DEBUG_MODE else "An error occurred",
-    }
-
-# ============================================================================
-# MAIN ENTRY POINT
-# ============================================================================
 
 if __name__ == "__main__":
-    import uvicorn
-    
-    logger.info(f"Starting SwarSetu server on {HOST}:{PORT}")
-    
-    # Start the FastAPI server using uvicorn
-    uvicorn.run(
-        "main:app",
-        host=HOST,
-        port=PORT,
-        reload=DEBUG_MODE,
-        log_level=LOG_LEVEL.lower(),
-    )
+    main()
