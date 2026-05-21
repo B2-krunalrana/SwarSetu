@@ -25,8 +25,16 @@ except ImportError:
 # Fix Windows terminal encoding to UTF-8 (prevents crash on emoji in logs)
 if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    try:
+        if sys.stdout and hasattr(sys.stdout, "buffer") and sys.stdout.buffer is not None:
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    try:
+        if sys.stderr and hasattr(sys.stderr, "buffer") and sys.stderr.buffer is not None:
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 # Setup logging
 logging.basicConfig(
