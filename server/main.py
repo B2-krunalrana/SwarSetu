@@ -17,7 +17,10 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from fastapi.staticfiles import StaticFiles
 
-from config import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEBUG
+try:
+    from server.config import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEBUG
+except ImportError:
+    from config import DEFAULT_HOST, DEFAULT_PORT, DEFAULT_SAMPLE_RATE, DEFAULT_CHANNELS, DEBUG
 
 # Fix Windows terminal encoding to UTF-8 (prevents crash on emoji in logs)
 if sys.platform == "win32":

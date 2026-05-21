@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap rescap">
+
+  <Identity
+    Name="SwarSetu.VoiceBridge"
+    Publisher="CN=SwarSetu"
+    Version="1.0.0.0"
+    ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>SwarSetu Voice Bridge</DisplayName>
+    <PublisherDisplayName>SwarSetu</PublisherDisplayName>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Universal" MinVersion="10.0.17763.0" MaxVersionTested="10.0.22000.0" />
+  </Dependencies>
+
+  <Resources>
+    <Resource Language="en-us"/>
+  </Resources>
+
+  <Applications>
+    <Application Id="App"
+      Executable="SwarSetu.exe"
+      EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements
+        DisplayName="SwarSetu Voice Bridge"
+        Description="🎙️ SwarSetu: Real-Time Live Voice Announcement Broadcasting System"
+        BackgroundColor="#090d16"
+        Square150x150Logo="Assets\Square150x150Logo.png"
+        Square44x44Logo="Assets\Square44x44Logo.png">
+        <uap:DefaultTile Wide310x150Logo="Assets\Wide310x150Logo.png" />
+        <uap:SplashScreen Image="Assets\SplashScreen.png" />
+      </uap:VisualElements>
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <!-- Restricted capability runFullTrust allows direct execution of standard Win32 executables -->
+    <rescap:Capability Name="runFullTrust" />
+    <Capability Name="internetClient" />
+    <!-- Device capability microphone declares that the app accesses system audio devices -->
+    <DeviceCapability Name="microphone"/>
+  </Capabilities>
+</Package>

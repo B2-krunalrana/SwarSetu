@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwarSetu - Interactive User Guide</title>
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <style>
+    /* Premium CSS Reset & Design Variables */
+    :root {
+      --bg-dark: #090d16;
+      --bg-card: #151b2c;
+      --fg-light: #f8fafc;
+      --fg-muted: #94a3b8;
+      --accent: #06b6d4;
+      --accent-hover: #0891b2;
+      --emerald: #10b981;
+      --red: #ef4444;
+      --border: #1e293b;
+      --glow: rgba(6, 182, 212, 0.15);
+      --font-title: 'Outfit', sans-serif;
+      --font-body: 'Inter', sans-serif;
+      --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--fg-light);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scrollbar Styling */
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-dark);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--accent);
+    }
+
+    /* Container */
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 30px;
+    }
+
+    /* Header */
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    .logo-container {
+      display: inline-block;
+      position: relative;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: var(--font-title);
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      background: linear-gradient(135deg, #fff 0%, var(--accent) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--fg-muted);
+      font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Layout Columns */
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 30px;
+    }
+
+    @media (max-width: 900px) {
+      .layout-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Card Component */
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 30px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .card-title {
+      font-family: var(--font-title);
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--fg-light);
+    }
+
+    .card-title svg {
+      color: var(--accent);
+    }
+
+    /* Image Wrapper */
+    .image-wrapper {
+      position: relative;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      background-color: rgba(9, 13, 22, 0.6);
+      margin-top: 15px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      transition: var(--transition);
+    }
+
+    .image-wrapper:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 20px var(--glow);
+    }
+
+    .image-wrapper img {
+      width: 100%;
+      height: auto;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Steps Dashboard */
+    .steps-tabs {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .tab-nav {
+      display: flex;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 15px;
+      overflow-x: auto;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+      padding: 8px 16px;
+      border-radius: 30px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+
+    .tab-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .tab-btn.active {
+      background-color: var(--accent);
+      color: var(--bg-dark);
+      border-color: var(--accent);
+      box-shadow: 0 0 15px var(--glow);
+    }
+
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Setup Details Elements */
+    .step-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .step-number {
+      font-family: var(--font-title);
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .step-badge {
+      font-size: 0.8rem;
+      font-weight: 600;
+      background-color: rgba(6, 182, 212, 0.1);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid rgba(6, 182, 212, 0.2);
+    }
+
+    .step-desc {
+      color: var(--fg-muted);
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+    }
+
+    .button-step-box {
+      background-color: rgba(9, 13, 22, 0.4);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .button-step-box h4 {
+      font-family: var(--font-title);
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--fg-light);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .button-step-box h4 span {
+      background-color: var(--accent);
+      color: var(--bg-dark);
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .step-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .step-list li {
+      font-size: 0.9rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .step-list li::before {
+      content: "➔";
+      color: var(--accent);
+      font-weight: bold;
+    }
+
+    .highlight-btn {
+      display: inline-block;
+      background-color: var(--accent);
+      color: var(--bg-dark);
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      box-shadow: 0 4px 12px rgba(6, 182, 212, 0.2);
+    }
+
+    .highlight-checkbox {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 16px;
+      height: 16px;
+      border: 1px solid var(--accent);
+      border-radius: 3px;
+      color: var(--accent);
+      font-size: 0.65rem;
+      font-weight: bold;
+      vertical-align: middle;
+      background-color: rgba(6, 182, 212, 0.1);
+    }
+
+    /* FAQ Panel */
+    .faq-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .faq-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .faq-item {
+      background-color: rgba(9, 13, 22, 0.3);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: var(--transition);
+    }
+
+    .faq-item:hover {
+      border-color: rgba(6, 182, 212, 0.3);
+      background-color: rgba(9, 13, 22, 0.5);
+    }
+
+    .faq-q {
+      font-family: var(--font-title);
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+
+    .faq-a {
+      font-size: 0.9rem;
+      color: var(--fg-muted);
+    }
+
+    /* Footer Info */
+    footer {
+      text-align: center;
+      padding: 20px 0;
+      font-size: 0.85rem;
+      color: var(--fg-muted);
+      border-top: 1px solid var(--border);
+      margin-top: 20px;
+    }
+
+    footer a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <header>
+      <div class="logo-container">
+        <h1>SwarSetu</h1>
+      </div>
+      <div class="subtitle">Desktop App & Mobile Streaming Guide</div>
+    </header>
+
+    <div class="layout-grid">
+      
+      <!-- Left Card: Architecture / How it Works -->
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+          How SwarSetu Works
+        </h2>
+        <p class="step-desc">
+          SwarSetu sets up a secure, ultra-low latency real-time voice bridge. Audio recorded on your phone is transmitted instantly via secure WebSockets to your PC.
+        </p>
+        
+        <div class="image-wrapper">
+          <!-- Embedded Generated Workflow Image -->
+          <img src="swarsetu_workflow.png" alt="SwarSetu Wireless Stream Workflow illustration showing Phone streaming voice to PC over local WiFi">
+        </div>
+        
+        <div style="margin-top: 20px;">
+          <ul class="step-list">
+            <li><strong>Local Secure Connection:</strong> Bypasses external cloud networks completely, running entirely over local Wi-Fi.</li>
+            <li><strong>Automated SSL (HTTPS):</strong> Programmatically creates local certificates so mobile browsers grant microphone access safely.</li>
+            <li><strong>High-Fidelity Audio:</strong> Streams 16 kHz Mono PCM audio chunks directly to your PC speakers.</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Right Card: Step by Step Click Wizard -->
+      <div class="card">
+        <h2 class="card-title">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+          Interactive Setup Wizard Guide
+        </h2>
+        
+        <div class="steps-tabs">
+          <!-- Tab Navigation -->
+          <div class="tab-nav">
+            <button class="tab-btn active" onclick="switchTab(event, 'welcome')">1. Welcome</button>
+            <button class="tab-btn" onclick="switchTab(event, 'permissions')">2. Permissions</button>
+            <button class="tab-btn" onclick="switchTab(event, 'loader')">3. Loading</button>
+            <button class="tab-btn" onclick="switchTab(event, 'dashboard')">4. Dashboard</button>
+          </div>
+
+          <!-- Tab Content 1: Welcome Screen -->
+          <div id="welcome" class="tab-content active">
+            <div class="step-header">
+              <span class="step-number">Step 1</span>
+              <span class="step-badge">First Launch Only</span>
+            </div>
+            <p class="step-desc">
+              When you double-click <strong>SwarSetu.exe</strong> for the first time, you are presented with a premium branding page explaining what the app does.
+            </p>
+            
+            <div class="button-step-box">
+              <h4><span>1</span> Click action to proceed:</h4>
+              <ul class="step-list">
+                <li>Look for the cyber-cyan button labeled <strong class="highlight-btn">Get Started  ➔</strong> in the middle of the frame.</li>
+                <li>Click it to transition to the Requirements page.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Tab Content 2: Permissions Screen -->
+          <div id="permissions" class="tab-content">
+            <div class="step-header">
+              <span class="step-number">Step 2</span>
+              <span class="step-badge">Security Checklist</span>
+            </div>
+            <p class="step-desc">
+              This screen lists requirements: Local firewall access (Port 8000), SSL HTTPS context creation, and Audio output speaker access.
+            </p>
+            
+            <div class="button-step-box">
+              <h4><span>1</span> Toggle agreement box:</h4>
+              <ul class="step-list">
+                <li>Locate the checkbox at the bottom: <span class="highlight-checkbox">✓</span> <strong>"I agree to grant these permissions."</strong></li>
+                <li>Click the checkbox to check it. This will unlock the proceed button.</li>
+              </ul>
+            </div>
+
+            <div class="button-step-box" style="margin-top: 10px;">
+              <h4><span>2</span> Click to continue:</h4>
+              <ul class="step-list">
+                <li>Click the newly enabled <strong class="highlight-btn">Continue  ➔</strong> button to launch the initialization sequence.</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Tab Content 3: Setup Loader Screen -->
+          <div id="loader" class="tab-content">
+            <div class="step-header">
+              <span class="step-number">Step 3</span>
+              <span class="step-badge">Automatic Initialization</span>
+            </div>
+            <p class="step-desc">
+              The loader screen initializes the system. You do not need to click anything here. The app automatically completes the following tasks:
+            </p>
+            
+            <div class="button-step-box">
+              <h4><span>✓</span> Automated Actions:</h4>
+              <ul class="step-list" style="gap: 12px;">
+                <li><strong style="color: var(--emerald);">🔒 SSL Certificates:</strong> Generates self-signed `cert.pem` and `key.pem` files in the folder.</li>
+                <li><strong style="color: var(--emerald);">🔊 Speaker Scan:</strong> Queries local audio drivers for available output systems.</li>
+                <li><strong style="color: var(--emerald);">🚀 Server Startup:</strong> Boots the FastAPI server on port 8000 in a background thread.</li>
+              </ul>
+            </div>
+            
+            <p class="step-desc" style="font-style: italic; font-size: 0.85rem;">
+              *Once all three systems are loaded, the wizard completes and automatically transitions you to the Live Dashboard in 2 seconds.
+            </p>
+          </div>
+
+          <!-- Tab Content 4: Live Dashboard Screen -->
+          <div id="dashboard" class="tab-content">
+            <div class="step-header">
+              <span class="step-number">Step 4</span>
+              <span class="step-badge">Active Connection Mode</span>
+            </div>
+            <p class="step-desc">
+              The main control dashboard is displayed. On all future launches of the application, SwarSetu will skip the wizard and open this dashboard directly.
+            </p>
+            
+            <div class="button-step-box">
+              <h4><span>1</span> Connect your Phone:</h4>
+              <ul class="step-list">
+                <li>Connect your phone and PC to the **same Wi-Fi network**.</li>
+                <li>Scan the **QR Code** on the screen with your phone's camera, or click <strong class="highlight-btn" style="background-color: var(--bg-dark); color: var(--accent); border: 1px solid var(--accent);">📋 Copy</strong> and send the link to your phone.</li>
+              </ul>
+            </div>
+
+            <div class="button-step-box" style="margin-top: 10px;">
+              <h4><span>2</span> Stream Voice Announcements:</h4>
+              <ul class="step-list">
+                <li>Open the link on your phone (tap **Advanced -> Proceed** if your browser warns about the self-signed certificate).</li>
+                <li>Tap the green **"Allow Mic"** button on the web page.</li>
+                <li>Speak! The audio will stream directly out of your PC speakers. Adjust the **Speaker Selection Dropdown** in the PC app if needed.</li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+
+    <!-- FAQ & Troubleshooting -->
+    <div class="card" style="margin-top: 10px;">
+      <h2 class="card-title">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        Troubleshooting & Tips
+      </h2>
+      
+      <div class="faq-grid">
+        <div class="faq-item">
+          <div class="faq-q">Browser shows "Secure Origin Required" or fails to play?</div>
+          <div class="faq-a">
+            Mobile browsers block microphone access unless the page is loaded over HTTPS. SwarSetu generates SSL certificates automatically. Ensure you accept the self-signed certificate exception on your phone's browser when navigating to the address.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">How do I run the Wizard again?</div>
+          <div class="faq-a">
+            The setup completion state is stored in your user profile. To force the Setup Wizard to run again on launch, simply delete the file: <code>~/.swarsetu_config.json</code> in your user home directory.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">How do I update the speaker?</div>
+          <div class="faq-a">
+            Use the dropdown selector labeled <strong>"Output Speaker Device"</strong> at the bottom of the Live Dashboard. If you plug in a new speaker, click the blue **"Refresh"** button to reload the devices.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <div class="faq-q">How do I exit the application?</div>
+          <div class="faq-a">
+            Closing the window (X button) at any stage (Wizard or Dashboard) immediately terminates the background FastAPI server and exits the program safely.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      SwarSetu Voice Bridge Project • Open <a href="file:///d:/SwarSetu-app/SwarSetu/dist/SwarSetu.exe">SwarSetu.exe</a> to launch the app
+    </footer>
+
+  </div>
+
+  <script>
+    // Tab switching script
+    function switchTab(evt, tabId) {
+      // Get all tab content elements
+      const contentList = document.querySelectorAll(".tab-content");
+      contentList.forEach(content => {
+        content.classList.remove("active");
+      });
+
+      // Get all tab button elements
+      const btnList = document.querySelectorAll(".tab-btn");
+      btnList.forEach(btn => {
+        btn.classList.remove("active");
+      });
+
+      // Show current tab content & activate button
+      document.getElementById(tabId).classList.add("active");
+      evt.currentTarget.classList.add("active");
+    }
+  </script>
+</body>
+</html>
